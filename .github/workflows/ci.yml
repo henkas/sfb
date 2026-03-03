@@ -21,7 +21,7 @@ jobs:
         run: bash -n bin/sfb lib/*.sh
 
       - name: Shellcheck
-        run: shellcheck bin/sfb lib/*.sh
+        run: shellcheck -x bin/sfb lib/*.sh
 
       - name: Run Bats tests
         run: bats tests/sfb.bats

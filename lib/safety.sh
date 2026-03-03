@@ -12,6 +12,18 @@ SFB_HARD_PROTECTED=("/" "/System" "/usr" "/bin" "/sbin" "/private" "/dev" "/etc"
 SFB_HOME_CRITICAL=("$HOME/Library" "$HOME/.ssh" "$HOME/.gnupg" "$HOME/.config" "$HOME/.local/share")
 SFB_EXTRA_PROTECTED=()
 SFB_UNPROTECTED=()
+# shellcheck disable=SC2034
+SFB_PATH_CANONICAL=""
+# shellcheck disable=SC2034
+SFB_PATH_TIER="low"
+# shellcheck disable=SC2034
+SFB_PATH_PROTECTED=false
+# shellcheck disable=SC2034
+SFB_PATH_BLOCKED=0
+# shellcheck disable=SC2034
+SFB_PATH_REASON="normal"
+# shellcheck disable=SC2034
+SFB_TOKEN_VALIDATION_ERROR=""
 
 sfb_select_state_paths() {
   local config_dir token_dir
@@ -33,11 +45,15 @@ sfb_select_state_paths() {
 
 sfb_expand_home() {
   local path="$1"
-  case "$path" in
-    "~") printf '%s\n' "$HOME" ;;
-    "~/"*) printf '%s/%s\n' "$HOME" "${path#~/}" ;;
-    *) printf '%s\n' "$path" ;;
-  esac
+  if [ "$path" = "~" ]; then
+    printf '%s\n' "$HOME"
+    return 0
+  fi
+  if [ "${path#~/}" != "$path" ]; then
+    printf '%s/%s\n' "$HOME" "${path#~/}"
+    return 0
+  fi
+  printf '%s\n' "$path"
 }
 
 sfb_abspath() {
@@ -149,7 +165,8 @@ sfb_csv_to_paths() {
   }
   local oldifs="$IFS"
   IFS=':'
-  local parts=($csv)
+  local parts=()
+  read -r -a parts <<< "$csv"
   IFS="$oldifs"
   local part
   for part in "${parts[@]}"; do
@@ -160,17 +177,17 @@ sfb_csv_to_paths() {
 }
 
 sfb_paths_to_csv() {
-  local out=""
+  local out_csv=""
   local p
   for p in "$@"; do
     [ -z "$p" ] && continue
-    if [ -z "$out" ]; then
-      out="$p"
+    if [ -z "$out_csv" ]; then
+      out_csv="$p"
     else
-      out="$out:$p"
+      out_csv="$out_csv:$p"
     fi
   done
-  printf '%s' "$out"
+  printf '%s' "$out_csv"
 }
 
 sfb_load_config() {
@@ -392,8 +409,6 @@ TOKEN
 
   printf '%s\n' "$token"
 }
-
-SFB_TOKEN_VALIDATION_ERROR=""
 
 sfb_validate_unlock_token() {
   local token="$1"

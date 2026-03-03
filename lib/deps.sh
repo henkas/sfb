@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
 SFB_REQUIRED_CMDS=(du find sort awk sed fzf trash)
-SFB_OPTIONAL_CMDS=(rg)
-
 sfb_join_by_comma() {
   local IFS=','
   printf '%s' "$*"
