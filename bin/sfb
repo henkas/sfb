@@ -27,8 +27,8 @@ sfb - Smart File Browser (macOS)
 Usage:
   sfb                       Start interactive TUI mode
   sfb tui [path]
-  sfb scan [path] [--depth N] [--top N] [--json|--tsv]
-  sfb list [path] [--top N] [--sort size|name] [--json|--tsv]
+  sfb scan [path] [--depth N] [--top N] [--human] [--json|--tsv]
+  sfb list [path] [--top N] [--sort size|name] [--human] [--json|--tsv]
   sfb trash <path...> [--allow-delete --unlock-token TOKEN] [--json]
   sfb doctor [--install-deps] [--issue-token] [--json]
   sfb unlock
@@ -41,8 +41,17 @@ USAGE
 
 sfb_print_entries_table() {
   local entries_file="$1"
-  printf '%12s  %-4s  %-6s  %-9s  %s\n' "BYTES" "KIND" "RISK" "PROTECTED" "PATH"
-  awk -F'\t' '{printf "%12s  %-4s  %-6s  %-9s  %s\n", $1, $2, $3, $4, $5}' "$entries_file"
+  local human="${2:-0}"
+  if [ "$human" -eq 1 ]; then
+    printf '%12s  %-4s  %-6s  %-9s  %s\n' "SIZE" "KIND" "RISK" "PROTECTED" "PATH"
+    while IFS=$'\t' read -r bytes kind risk protected path; do
+      [ -z "${path:-}" ] && continue
+      printf '%12s  %-4s  %-6s  %-9s  %s\n' "$(sfb_human_bytes "$bytes")" "$kind" "$risk" "$protected" "$path"
+    done < "$entries_file"
+  else
+    printf '%12s  %-4s  %-6s  %-9s  %s\n' "BYTES" "KIND" "RISK" "PROTECTED" "PATH"
+    awk -F'\t' '{printf "%12s  %-4s  %-6s  %-9s  %s\n", $1, $2, $3, $4, $5}' "$entries_file"
+  fi
 }
 
 sfb_sort_entries() {
@@ -238,6 +247,7 @@ sfb_cmd_scan() {
   local depth=2
   local top_n=40
   local format="table"
+  local human=0
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -254,6 +264,9 @@ sfb_cmd_scan() {
         ;;
       --tsv)
         format="tsv"
+        ;;
+      --human)
+        human=1
         ;;
       --*)
         printf 'Unknown scan flag: %s\n' "$1" >&2
@@ -279,7 +292,7 @@ sfb_cmd_scan() {
   case "$format" in
     json) sfb_print_entries_json "$root" "$entries_file" ;;
     tsv) sfb_print_entries_tsv "$entries_file" ;;
-    table) sfb_print_entries_table "$entries_file" ;;
+    table) sfb_print_entries_table "$entries_file" "$human" ;;
   esac
 
   rm -f "$entries_file"
@@ -290,6 +303,7 @@ sfb_cmd_list() {
   local top_n=200
   local sort_mode="size"
   local format="table"
+  local human=0
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -306,6 +320,9 @@ sfb_cmd_list() {
         ;;
       --tsv)
         format="tsv"
+        ;;
+      --human)
+        human=1
         ;;
       --*)
         printf 'Unknown list flag: %s\n' "$1" >&2
@@ -335,7 +352,7 @@ sfb_cmd_list() {
   case "$format" in
     json) sfb_print_entries_json "$root" "$entries_file" ;;
     tsv) sfb_print_entries_tsv "$entries_file" ;;
-    table) sfb_print_entries_table "$entries_file" ;;
+    table) sfb_print_entries_table "$entries_file" "$human" ;;
   esac
 
   rm -f "$entries_file"

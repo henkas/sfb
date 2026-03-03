@@ -6,10 +6,10 @@ _sfb_completions() {
 
   case "${COMP_WORDS[1]}" in
     scan)
-      COMPREPLY=( $(compgen -W "--depth --top --json --tsv" -- "$cur") )
+      COMPREPLY=( $(compgen -W "--depth --top --human --json --tsv" -- "$cur") )
       ;;
     list)
-      COMPREPLY=( $(compgen -W "--top --sort --json --tsv" -- "$cur") )
+      COMPREPLY=( $(compgen -W "--top --sort --human --json --tsv" -- "$cur") )
       ;;
     trash)
       COMPREPLY=( $(compgen -W "--allow-delete --unlock-token --json" -- "$cur") )

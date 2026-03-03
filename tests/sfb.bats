@@ -55,6 +55,22 @@ teardown() {
   [[ "$output" == *'"path"'* ]]
 }
 
+@test "scan --human prints readable table sizes" {
+  run "$SFB_BIN" scan "$TEST_ROOT/work" --top 5 --human
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"SIZE"* ]]
+  [[ "$output" == *"KB"* || "$output" == *"B"* ]]
+}
+
+@test "repeated scans do not fail with descriptor-style errors" {
+  local i
+  for i in $(seq 1 15); do
+    run "$SFB_BIN" scan "$TEST_ROOT/work" --top 20
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Too many open files"* ]]
+  done
+}
+
 @test "trash command requires authorization flags" {
   run "$SFB_BIN" trash "$TEST_ROOT/work/file2.txt"
   [ "$status" -eq 5 ]

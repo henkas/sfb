@@ -24,10 +24,10 @@ _sfb() {
     args)
       case ${words[2]} in
         scan)
-          _arguments '--depth[scan depth]:depth:' '--top[top entries]:count:' '--json[json output]' '--tsv[tsv output]'
+          _arguments '--depth[scan depth]:depth:' '--top[top entries]:count:' '--human[human-readable table sizes]' '--json[json output]' '--tsv[tsv output]'
           ;;
         list)
-          _arguments '--top[top entries]:count:' '--sort[sort mode]:mode:(size name)' '--json[json output]' '--tsv[tsv output]'
+          _arguments '--top[top entries]:count:' '--sort[sort mode]:mode:(size name)' '--human[human-readable table sizes]' '--json[json output]' '--tsv[tsv output]'
           ;;
         trash)
           _arguments '--allow-delete[enable deletion]' '--unlock-token[unlock token]:token:' '--json[json output]'

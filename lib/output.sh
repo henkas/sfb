@@ -14,6 +14,20 @@ sfb_json_escape() {
   '
 }
 
+sfb_human_bytes() {
+  local bytes="${1:-0}"
+  local units=("B" "KB" "MB" "GB" "TB" "PB")
+  local idx=0
+  local whole="$bytes"
+
+  while [ "$whole" -ge 1024 ] && [ "$idx" -lt 5 ]; do
+    whole=$((whole / 1024))
+    idx=$((idx + 1))
+  done
+
+  printf '%s%s' "$whole" "${units[$idx]}"
+}
+
 sfb_print_entries_tsv() {
   local entries_file="$1"
   printf 'bytes\tkind\trisk_tier\tprotected\tpath\n'

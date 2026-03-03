@@ -8,7 +8,7 @@
 ## Features
 
 - Fast disk usage scans (`scan`, `list`)
-- Interactive TUI (`sfb` or `sfb tui`)
+- Interactive full-screen TUI (`sfb` or `sfb tui`) with loading indicators
 - Protected path policy (system roots + home-critical dirs)
 - Two-key delete authorization for CLI/agent use:
   - `--allow-delete`
@@ -34,7 +34,9 @@ ln -sf "$(pwd)/bin/sfb" /usr/local/bin/sfb
 sfb
 sfb tui ~/Downloads
 sfb scan ~ --depth 2 --top 50
+sfb scan ~ --depth 2 --top 50 --human
 sfb list ~/Projects --json
+sfb list ~/Projects --human
 token="$(sfb unlock)"
 sfb trash ~/Downloads/big.iso --allow-delete --unlock-token "$token"
 ```
@@ -42,8 +44,8 @@ sfb trash ~/Downloads/big.iso --allow-delete --unlock-token "$token"
 ## Commands
 
 - `sfb` or `sfb tui [path]`
-- `sfb scan [path] [--depth N] [--top N] [--json|--tsv]`
-- `sfb list [path] [--top N] [--sort size|name] [--json|--tsv]`
+- `sfb scan [path] [--depth N] [--top N] [--human] [--json|--tsv]`
+- `sfb list [path] [--top N] [--sort size|name] [--human] [--json|--tsv]`
 - `sfb trash <path...> [--allow-delete --unlock-token TOKEN] [--json]`
 - `sfb doctor [--install-deps] [--issue-token] [--json]`
 - `sfb unlock`

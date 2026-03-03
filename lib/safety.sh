@@ -12,6 +12,7 @@ SFB_HARD_PROTECTED=("/" "/System" "/usr" "/bin" "/sbin" "/private" "/dev" "/etc"
 SFB_HOME_CRITICAL=("$HOME/Library" "$HOME/.ssh" "$HOME/.gnupg" "$HOME/.config" "$HOME/.local/share")
 SFB_EXTRA_PROTECTED=()
 SFB_UNPROTECTED=()
+SFB_CLASSIFICATION_READY=0
 # shellcheck disable=SC2034
 SFB_PATH_CANONICAL=""
 # shellcheck disable=SC2034
@@ -144,6 +145,7 @@ sfb_config_set_value() {
   ' "$SFB_CONFIG_FILE" > "$tmp"
 
   mv "$tmp" "$SFB_CONFIG_FILE"
+  sfb_invalidate_classification_context
 }
 
 sfb_list_contains_path() {
@@ -209,14 +211,26 @@ sfb_collect_protected_arrays() {
   SFB_EXTRA_PROTECTED=()
   SFB_UNPROTECTED=()
 
-  local line
+  local line csv
+  csv="$(sfb_csv_to_paths "$SFB_EXTRA_PROTECTED_PATHS")"
   while IFS= read -r line; do
     [ -n "$line" ] && SFB_EXTRA_PROTECTED+=("$line")
-  done < <(sfb_csv_to_paths "$SFB_EXTRA_PROTECTED_PATHS")
+  done <<< "$csv"
 
+  csv="$(sfb_csv_to_paths "$SFB_UNPROTECTED_PATHS")"
   while IFS= read -r line; do
     [ -n "$line" ] && SFB_UNPROTECTED+=("$line")
-  done < <(sfb_csv_to_paths "$SFB_UNPROTECTED_PATHS")
+  done <<< "$csv"
+}
+
+sfb_invalidate_classification_context() {
+  SFB_CLASSIFICATION_READY=0
+}
+
+sfb_prepare_classification_context() {
+  sfb_load_config
+  sfb_collect_protected_arrays
+  SFB_CLASSIFICATION_READY=1
 }
 
 sfb_is_unprotected() {
@@ -241,8 +255,9 @@ sfb_classify_path() {
   SFB_PATH_BLOCKED=0
   SFB_PATH_REASON="normal"
 
-  sfb_load_config
-  sfb_collect_protected_arrays
+  if [ "${SFB_CLASSIFICATION_READY:-0}" -ne 1 ]; then
+    sfb_prepare_classification_context
+  fi
 
   local p
   for p in "${SFB_HARD_PROTECTED[@]}"; do
@@ -302,8 +317,7 @@ sfb_classify_path() {
 }
 
 sfb_protect_list() {
-  sfb_load_config
-  sfb_collect_protected_arrays
+  sfb_prepare_classification_context
 
   printf 'Hard protected (immutable):\n'
   printf '  %s\n' "${SFB_HARD_PROTECTED[@]}"
@@ -333,8 +347,7 @@ sfb_protect_add() {
     return 1
   }
 
-  sfb_load_config
-  sfb_collect_protected_arrays
+  sfb_prepare_classification_context
 
   if sfb_list_contains_path "$path" "${SFB_EXTRA_PROTECTED[@]-}"; then
     printf 'Path already in custom protected list: %s\n' "$path"
@@ -353,8 +366,7 @@ sfb_protect_remove() {
     return 1
   }
 
-  sfb_load_config
-  sfb_collect_protected_arrays
+  sfb_prepare_classification_context
 
   local p
   for p in "${SFB_HARD_PROTECTED[@]}"; do
