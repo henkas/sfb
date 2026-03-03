@@ -5,14 +5,19 @@ set -u -o pipefail
 SFB_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # shellcheck source=../lib/deps.sh
+# shellcheck disable=SC1091
 source "$SFB_ROOT_DIR/lib/deps.sh"
 # shellcheck source=../lib/safety.sh
+# shellcheck disable=SC1091
 source "$SFB_ROOT_DIR/lib/safety.sh"
 # shellcheck source=../lib/scan.sh
+# shellcheck disable=SC1091
 source "$SFB_ROOT_DIR/lib/scan.sh"
 # shellcheck source=../lib/output.sh
+# shellcheck disable=SC1091
 source "$SFB_ROOT_DIR/lib/output.sh"
 # shellcheck source=../lib/tui.sh
+# shellcheck disable=SC1091
 source "$SFB_ROOT_DIR/lib/tui.sh"
 
 sfb_usage() {

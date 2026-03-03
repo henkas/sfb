@@ -229,6 +229,7 @@ sfb_is_unprotected() {
   return 1
 }
 
+# shellcheck disable=SC2034
 sfb_classify_path() {
   local original="$1"
   local path
@@ -410,6 +411,7 @@ TOKEN
   printf '%s\n' "$token"
 }
 
+# shellcheck disable=SC2034
 sfb_validate_unlock_token() {
   local token="$1"
   SFB_TOKEN_VALIDATION_ERROR=""
