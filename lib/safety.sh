@@ -229,7 +229,6 @@ sfb_is_unprotected() {
   return 1
 }
 
-# shellcheck disable=SC2034
 sfb_classify_path() {
   local original="$1"
   local path
