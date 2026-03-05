@@ -31,6 +31,7 @@ FZF
   mkdir -p "$TEST_ROOT/work/a"
   printf 'hello\n' > "$TEST_ROOT/work/a/file1.txt"
   printf 'world\n' > "$TEST_ROOT/work/file2.txt"
+  printf 'hidden\n' > "$TEST_ROOT/work/.secret.txt"
 
   mkdir -p "$HOME/.ssh"
   printf 'key\n' > "$HOME/.ssh/id_rsa"
@@ -77,6 +78,12 @@ teardown() {
   [[ "$output" == *"Delete authorization failed"* ]]
 }
 
+@test "trash command blocks when token is missing" {
+  run "$SFB_BIN" trash "$TEST_ROOT/work/file2.txt" --allow-delete
+  [ "$status" -eq 5 ]
+  [[ "$output" == *"missing --unlock-token"* ]]
+}
+
 @test "trash command moves file when unlocked" {
   token="$($SFB_BIN unlock)"
   run "$SFB_BIN" trash "$TEST_ROOT/work/file2.txt" --allow-delete --unlock-token "$token"
@@ -91,6 +98,13 @@ teardown() {
   [[ "$output" == *"protected home-critical path"* ]]
 }
 
+@test "hard protected path is blocked" {
+  token="$($SFB_BIN unlock)"
+  run "$SFB_BIN" trash "/" --allow-delete --unlock-token "$token"
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"hard-protected system path"* ]]
+}
+
 @test "protect add and list" {
   run "$SFB_BIN" protect add "$TEST_ROOT/work/a"
   [ "$status" -eq 0 ]
@@ -98,4 +112,22 @@ teardown() {
   run "$SFB_BIN" protect list
   [ "$status" -eq 0 ]
   [[ "$output" == *"$TEST_ROOT/work/a"* ]]
+}
+
+@test "summary command emits json report" {
+  run "$SFB_BIN" summary "$TEST_ROOT/work" --json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"summary"'* ]]
+  [[ "$output" == *'"total_bytes"'* ]]
+  [[ "$output" == *'"file_count"'* ]]
+  [[ "$output" == *'"top_by_size"'* ]]
+  [[ "$output" == *'"extensions"'* ]]
+}
+
+@test "find command emits json and respects name pattern" {
+  run "$SFB_BIN" find "$TEST_ROOT/work" --name '*.txt' --json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"entries"'* ]]
+  [[ "$output" == *'"file1.txt"'* ]]
+  [[ "$output" == *'"file2.txt"'* ]]
 }
