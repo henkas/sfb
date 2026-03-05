@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v*"
 
 jobs:
   release:
@@ -16,18 +16,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build source archive
-        run: |
-          VERSION="${GITHUB_REF_NAME}"
-          git archive --format=tar.gz --output "sfb-${VERSION}.tar.gz" "${VERSION}"
-          shasum -a 256 "sfb-${VERSION}.tar.gz" > "sfb-${VERSION}.sha256"
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            sfb-${{ github.ref_name }}.tar.gz
-            sfb-${{ github.ref_name }}.sha256
           generate_release_notes: true
 
   formula-pr:
@@ -35,61 +26,15 @@ jobs:
     needs: [release]
     permissions:
       contents: read
-    env:
-      TAP_REPO: henkas/homebrew-tap
-      SOURCE_REPO: henkas/homebrew-sfb
-      GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
-      - name: Checkout source repository
+      - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
         with:
-          fetch-depth: 0
-
-      - name: Verify tap token exists
-        run: |
-          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "Missing secret HOMEBREW_TAP_TOKEN in ${GITHUB_REPOSITORY}." >&2
-            exit 1
-          fi
-
-      - name: Clone tap repository
-        run: |
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
-
-      - name: Generate formula update in tap repository
-        run: |
-          bash scripts/release.sh "${GITHUB_REF_NAME}" \
-            --source-repo "${SOURCE_REPO}" \
-            --formula-path "tap-repo/Formula/sfb.rb"
-
-      - name: Commit and push formula branch
-        id: commit_formula
-        run: |
-          cd tap-repo
-          branch="chore/formula-${GITHUB_REF_NAME}-${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
-          if git diff --quiet -- Formula/sfb.rb; then
-            echo "No formula changes detected."
-            echo "created=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/sfb.rb
-          git commit -m "chore(formula): update sfb for ${GITHUB_REF_NAME}"
-          git push --set-upstream origin "$branch"
-          echo "created=true" >> "$GITHUB_OUTPUT"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
-
-      - name: Create tap PR
-        if: steps.commit_formula.outputs.created == 'true'
-        run: |
-          gh pr create \
-            --repo "${TAP_REPO}" \
-            --base main \
-            --head "${{ steps.commit_formula.outputs.branch }}" \
-            --title "chore(formula): update sfb for ${GITHUB_REF_NAME}" \
-            --body "Automated formula update for ${SOURCE_REPO} ${GITHUB_REF_NAME}." \
-            --label release \
-            --label automation
+          formula-name: sfb
+          tap-repo: henkas/homebrew-tap
+          formula-path: Formula/sfb.rb
+        env:
+          COMMITTER_TOKEN: ${{ secrets.TAP_TOKEN }}

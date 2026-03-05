@@ -5,7 +5,7 @@ set -euo pipefail
 VERSION="${1:-}"
 shift || true
 
-SOURCE_REPO="${GITHUB_REPOSITORY:-henkas/homebrew-sfb}"
+SOURCE_REPO="${GITHUB_REPOSITORY:-henkas/sfb}"
 FORMULA_PATH="Formula/sfb.rb"
 
 usage() {
