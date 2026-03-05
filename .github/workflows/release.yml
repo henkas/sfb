@@ -34,7 +34,7 @@ jobs:
         uses: mislav/bump-homebrew-formula-action@v3
         with:
           formula-name: sfb
-          tap-repo: henkas/homebrew-tap
+          homebrew-tap: henkas/homebrew-tap
           formula-path: Formula/sfb.rb
         env:
           COMMITTER_TOKEN: ${{ secrets.TAP_TOKEN }}
