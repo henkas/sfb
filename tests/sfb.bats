@@ -131,3 +131,9 @@ teardown() {
   [[ "$output" == *'"file1.txt"'* ]]
   [[ "$output" == *'"file2.txt"'* ]]
 }
+
+@test "find command includes directories with zero bytes" {
+  run "$SFB_BIN" find "$TEST_ROOT/work" --json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"name":"a","bytes":0,"kind":"dir"'* ]]
+}
