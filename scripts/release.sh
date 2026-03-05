@@ -83,6 +83,7 @@ class Sfb < Formula
     lib.install Dir["lib/*.sh"]
     bash_completion.install "completions/sfb.bash" => "sfb"
     zsh_completion.install "completions/_sfb"
+    fish_completion.install "completions/sfb.fish"
     prefix.install "README.md"
   end
 

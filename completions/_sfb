@@ -6,6 +6,8 @@ _sfb() {
     'tui:interactive TUI'
     'scan:scan directories by size'
     'list:list immediate children'
+    'summary:show recursive summary report'
+    'find:find entries by name'
     'trash:move paths to Trash'
     'doctor:check dependencies'
     'unlock:issue unlock token'
@@ -28,6 +30,12 @@ _sfb() {
           ;;
         list)
           _arguments '--top[top entries]:count:' '--sort[sort mode]:mode:(size name)' '--human[human-readable table sizes]' '--json[json output]' '--tsv[tsv output]'
+          ;;
+        summary)
+          _arguments '--json[json output]'
+          ;;
+        find)
+          _arguments '--name[filename glob pattern]:pattern:' '--json[json output]'
           ;;
         trash)
           _arguments '--allow-delete[enable deletion]' '--unlock-token[unlock token]:token:' '--json[json output]'

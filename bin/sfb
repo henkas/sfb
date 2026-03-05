@@ -29,6 +29,8 @@ Usage:
   sfb tui [path]
   sfb scan [path] [--depth N] [--top N] [--human] [--json|--tsv]
   sfb list [path] [--top N] [--sort size|name] [--human] [--json|--tsv]
+  sfb summary [path] [--json]
+  sfb find [path] [--name PATTERN] [--json]
   sfb trash <path...> [--allow-delete --unlock-token TOKEN] [--json]
   sfb doctor [--install-deps] [--issue-token] [--json]
   sfb unlock
@@ -358,6 +360,109 @@ sfb_cmd_list() {
   rm -f "$entries_file"
 }
 
+sfb_cmd_summary() {
+  local root="."
+  local format="text"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --json)
+        format="json"
+        ;;
+      --*)
+        printf 'Unknown summary flag: %s\n' "$1" >&2
+        return 2
+        ;;
+      *)
+        root="$1"
+        ;;
+    esac
+    shift
+  done
+
+  root="$(sfb_abspath "$root" 2>/dev/null || printf '%s' "$root")"
+  [ -d "$root" ] || {
+    printf 'Not a directory: %s\n' "$root" >&2
+    return 2
+  }
+
+  local top_entries_file extension_file stats_file
+  top_entries_file="$(mktemp)"
+  extension_file="$(mktemp)"
+  stats_file="$(mktemp)"
+
+  sfb_collect_summary_entries "$root" "$top_entries_file" "$extension_file" "$stats_file"
+
+  local total_bytes file_count
+  IFS=$'\t' read -r total_bytes file_count < "$stats_file"
+  total_bytes="${total_bytes:-0}"
+  file_count="${file_count:-0}"
+
+  if [ "$format" = "json" ]; then
+    sfb_print_summary_json "$root" "$total_bytes" "$file_count" "$top_entries_file" "$extension_file"
+  else
+    sfb_print_summary_text "$root" "$total_bytes" "$file_count" "$top_entries_file" "$extension_file"
+  fi
+
+  rm -f "$top_entries_file" "$extension_file" "$stats_file"
+}
+
+sfb_cmd_find() {
+  local root="."
+  local name_pattern=""
+  local format="table"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --name)
+        shift
+        [ "$#" -gt 0 ] || {
+          printf 'Missing value for --name\n' >&2
+          return 2
+        }
+        name_pattern="$1"
+        ;;
+      --json)
+        format="json"
+        ;;
+      --*)
+        printf 'Unknown find flag: %s\n' "$1" >&2
+        return 2
+        ;;
+      *)
+        root="$1"
+        ;;
+    esac
+    shift
+  done
+
+  root="$(sfb_abspath "$root" 2>/dev/null || printf '%s' "$root")"
+  [ -d "$root" ] || {
+    printf 'Not a directory: %s\n' "$root" >&2
+    return 2
+  }
+
+  local entries_file
+  entries_file="$(mktemp)"
+  sfb_find_entries "$root" "$name_pattern" "$entries_file"
+  local find_rc=$?
+  if [ "$find_rc" -ne 0 ]; then
+    rm -f "$entries_file"
+    if [ "$find_rc" -eq 3 ]; then
+      printf 'Search blocked for root %s: %s\n' "$root" "$SFB_PATH_REASON" >&2
+      return 3
+    fi
+    return "$find_rc"
+  fi
+
+  case "$format" in
+    json) sfb_print_entries_json "$root" "$entries_file" ;;
+    table) sfb_print_entries_table "$entries_file" 0 ;;
+  esac
+
+  rm -f "$entries_file"
+}
+
 sfb_cmd_trash() {
   local allow_delete=0
   local unlock_token=""
@@ -450,6 +555,14 @@ main() {
     list)
       shift
       sfb_cmd_list "$@"
+      ;;
+    summary)
+      shift
+      sfb_cmd_summary "$@"
+      ;;
+    find)
+      shift
+      sfb_cmd_find "$@"
       ;;
     trash)
       shift

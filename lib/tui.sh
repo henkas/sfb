@@ -44,16 +44,48 @@ sfb_tui_run_with_spinner() {
   return "$rc"
 }
 
+sfb_tui_size_bar() {
+  local bytes="${1:-0}"
+  local max_bytes="${2:-0}"
+  local width=10
+  local filled=0
+
+  if [ "$max_bytes" -gt 0 ] && [ "$bytes" -gt 0 ]; then
+    filled=$((bytes * width / max_bytes))
+    [ "$filled" -lt 1 ] && filled=1
+    [ "$filled" -gt "$width" ] && filled="$width"
+  fi
+
+  local i
+  local bar=""
+  for ((i = 0; i < filled; i++)); do
+    bar="${bar}█"
+  done
+  for ((i = filled; i < width; i++)); do
+    bar="${bar}░"
+  done
+
+  printf '%s' "$bar"
+}
+
 sfb_tui_build_display_rows() {
   local entries_file="$1"
   local display_file="$2"
 
-  printf 'SIZE\tTYPE\tRISK\tNAME\tPATH\n' > "$display_file"
+  printf 'SIZE       BAR        TYPE RISK   NAME\tPATH\n' > "$display_file"
+
+  local max_bytes
+  max_bytes="$(awk -F'\t' 'BEGIN { m=0 } { if ($1 > m) m = $1 } END { print m + 0 }' "$entries_file")"
 
   while IFS=$'\t' read -r bytes kind risk_tier _protected path; do
     [ -z "${path:-}" ] && continue
-    printf '%s\t%s\t%s\t%s\t%s\n' \
-      "$(sfb_human_bytes "$bytes")" "$kind" "$risk_tier" "$(basename "$path")" "$path" >> "$display_file"
+
+    local size bar display
+    size="$(sfb_human_bytes "$bytes")"
+    bar="$(sfb_tui_size_bar "$bytes" "$max_bytes")"
+    display="$(printf '%-10s %-10s %-4s %-6s %-28s' "$size" "$bar" "$kind" "$risk_tier" "$(basename "$path")")"
+
+    printf '%s\t%s\n' "$display" "$path" >> "$display_file"
   done < "$entries_file"
 }
 
@@ -61,20 +93,33 @@ sfb_tui_preview_cmd() {
   cat <<'CMD'
 bash -lc '
 target="$1"
-[ -d "$target" ] || exit 0
-printf "Children of %s\n\n" "$target"
-printf "%-10s %-4s %s\n" "SIZE" "TYPE" "NAME"
-for p in "$target"/*; do
-  [ -e "$p" ] || continue
-  if [ -d "$p" ]; then
-    size="$(du -sh "$p" 2>/dev/null | awk "{print \$1}")"
-    printf "%-10s %-4s %s\n" "$size" "dir" "$(basename "$p")"
-  elif [ -f "$p" ]; then
-    size="$(du -sh "$p" 2>/dev/null | awk "{print \$1}")"
-    printf "%-10s %-4s %s\n" "$size" "file" "$(basename "$p")"
+[ -n "$target" ] || exit 0
+
+if [ -f "$target" ]; then
+  printf "File: %s\n\n" "$target"
+  if command -v bat >/dev/null 2>&1; then
+    bat --style=plain --color=always --line-range=:200 -- "$target"
+  else
+    sed -n "1,200p" "$target"
   fi
-done | head -n 30
-' _ {5}
+  exit 0
+fi
+
+if [ -d "$target" ]; then
+  printf "Directory: %s\n" "$target"
+  printf "Total: %s\n\n" "$(du -sh "$target" 2>/dev/null | awk "{print \$1}")"
+  printf "%-10s %s\n" "SIZE" "CHILD"
+  find "$target" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | \
+    while IFS= read -r -d "" p; do
+      size="$(du -sh "$p" 2>/dev/null | awk "{print \$1}")"
+      [ -n "$size" ] || continue
+      printf "%s\t%s\n" "$size" "$(basename "$p")"
+    done | sort -hr -k1,1 | head -n 30 | awk -F"\t" "{ printf \"%-10s %s\\n\", \$1, \$2 }"
+  exit 0
+fi
+
+printf "Path unavailable: %s\n" "$target"
+' _ {2}
 CMD
 }
 
@@ -82,13 +127,14 @@ sfb_tui_select_entry() {
   local display_file="$1"
   local prompt="$2"
   local root="$3"
+  local help_line="$4"
+  local expect_keys="$5"
 
   local cols
   cols="$(tput cols 2>/dev/null || echo 120)"
-  local preview_args=()
-
-  if [ "$cols" -ge 110 ]; then
-    preview_args=(--preview "$(sfb_tui_preview_cmd)" --preview-window right:55%:wrap)
+  local preview_window='right:55%:wrap'
+  if [ "$cols" -lt 110 ]; then
+    preview_window='down:45%:wrap'
   fi
 
   local header
@@ -96,11 +142,32 @@ sfb_tui_select_entry() {
   if [ -n "$SFB_TUI_STATUS" ]; then
     header="$header\n$SFB_TUI_STATUS"
   fi
-  header="$header\nKeys: Enter=open | alt-u=up | alt-m=menu | alt-q=quit"
+  header="$header\n$help_line"
 
-  awk -F'\t' 'NR==1 { printf "%-10s %-4s %-6s %-28s\t%s\n", $1,$2,$3,$4,$5; next } { printf "%-10s %-4s %-6s %-28s\t%s\n", $1,$2,$3,$4,$5 }' "$display_file" | \
-    fzf --ansi --no-hscroll --layout=reverse --border --header "$header" --header-lines=1 \
-      --prompt "$prompt > " --expect=alt-u,alt-m,alt-q "${preview_args[@]}"
+  fzf --ansi --layout=reverse --border --header "$header" --header-lines=1 \
+    --prompt "$prompt > " --expect="$expect_keys" --multi --delimiter=$'\t' --with-nth=1 \
+    --preview "$(sfb_tui_preview_cmd)" --preview-window "$preview_window" \
+    --bind '?:toggle-preview' < "$display_file"
+}
+
+sfb_tui_extract_selected_paths() {
+  local result="$1"
+  printf '%s\n' "$result" | sed -n '2,$p' | awk -F'\t' 'NF >= 2 { print $2 }'
+}
+
+sfb_tui_open_paths() {
+  local mode="$1"
+  shift
+  local paths=("$@")
+  local path
+
+  for path in "${paths[@]}"; do
+    if [ "$mode" = "reveal" ]; then
+      open -R "$path"
+    else
+      open "$path"
+    fi
+  done
 }
 
 sfb_tui_browse_loop() {
@@ -134,10 +201,13 @@ sfb_tui_browse_loop() {
       return 0
     fi
 
-    local result key selected selected_path
-    result="$(sfb_tui_select_entry "$display_file" "$prompt_label" "$root")"
+    local help_line result key
+    help_line='Keys: Enter=confirm | Tab=select | d=descend | o=open | r=reveal | t=trash | ?=preview | alt-u=up | alt-m=menu | alt-q=quit'
+    result="$(sfb_tui_select_entry "$display_file" "$prompt_label" "$root" "$help_line" 'alt-u,alt-m,alt-q,o,r,t,d')"
     key="$(printf '%s\n' "$result" | sed -n '1p')"
-    selected="$(printf '%s\n' "$result" | sed -n '2p')"
+
+    local selected_paths=()
+    mapfile -t selected_paths < <(sfb_tui_extract_selected_paths "$result")
 
     rm -f "$entries_file" "$display_file"
 
@@ -159,19 +229,58 @@ sfb_tui_browse_loop() {
         ;;
     esac
 
-    [ -z "$selected" ] && {
+    if [ "${#selected_paths[@]}" -eq 0 ]; then
       printf '__MENU__:%s\n' "$root"
       return 0
-    }
-
-    selected_path="$(printf '%s' "$selected" | awk -F'\t' '{print $2}')"
-
-    if [ -d "$selected_path" ]; then
-      root="$selected_path"
-      sfb_tui_set_status "Opened $root"
-    else
-      sfb_tui_set_status "Selected file: $selected_path"
     fi
+
+    case "$key" in
+      o)
+        if sfb_tui_open_paths "open" "${selected_paths[@]}"; then
+          sfb_tui_set_status "Opened ${#selected_paths[@]} item(s)"
+        else
+          sfb_tui_set_status "Open action failed"
+        fi
+        continue
+        ;;
+      r)
+        if sfb_tui_open_paths "reveal" "${selected_paths[@]}"; then
+          sfb_tui_set_status "Revealed ${#selected_paths[@]} item(s) in Finder"
+        else
+          sfb_tui_set_status "Reveal action failed"
+        fi
+        continue
+        ;;
+      t)
+        if sfb_trash_paths "tui" 0 "" "${selected_paths[@]}"; then
+          sfb_tui_set_status "Moved ${#selected_paths[@]} item(s) to Trash"
+        else
+          sfb_tui_set_status "Trash action did not fully complete"
+        fi
+        continue
+        ;;
+      d)
+        if [ "${#selected_paths[@]}" -ne 1 ]; then
+          sfb_tui_set_status "Descend requires exactly one selected directory"
+          continue
+        fi
+        if [ -d "${selected_paths[0]}" ]; then
+          root="${selected_paths[0]}"
+          sfb_tui_set_status "Opened $root"
+        else
+          sfb_tui_set_status "Descend requires a directory"
+        fi
+        continue
+        ;;
+      "")
+        sfb_tui_set_status "Selected ${#selected_paths[@]} item(s)"
+        continue
+        ;;
+      *)
+        sfb_tui_set_status "Unhandled key: $key"
+        continue
+        ;;
+    esac
   done
 }
 
@@ -194,31 +303,61 @@ sfb_tui_largest_files() {
     return 0
   fi
 
-  local header
-  header="Root: $root"
-  if [ -n "$SFB_TUI_STATUS" ]; then
-    header="$header\n$SFB_TUI_STATUS"
-  fi
-  header="$header\nKeys: Enter=inspect | alt-m=menu | alt-q=quit"
-
-  local result key selected
-  result="$(awk -F'\t' 'NR==1 { printf "%-10s %-4s %-6s %-28s\t%s\n", $1,$2,$3,$4,$5; next } { printf "%-10s %-4s %-6s %-28s\t%s\n", $1,$2,$3,$4,$5 }' "$display_file" | \
-    fzf --ansi --no-hscroll --layout=reverse --border --header "$header" --header-lines=1 \
-      --prompt "files > " --expect=alt-m,alt-q)"
-
+  local help_line result key
+  help_line='Keys: Enter=confirm | Tab=select | o=open | r=reveal | t=trash | ?=preview | alt-m=menu | alt-q=quit'
+  result="$(sfb_tui_select_entry "$display_file" "files" "$root" "$help_line" 'alt-m,alt-q,o,r,t')"
   key="$(printf '%s\n' "$result" | sed -n '1p')"
-  selected="$(printf '%s\n' "$result" | sed -n '2p')"
+
+  local selected_paths=()
+  mapfile -t selected_paths < <(sfb_tui_extract_selected_paths "$result")
 
   rm -f "$entries_file" "$display_file"
 
   case "$key" in
-    alt-m) printf '__MENU__:%s\n' "$root"; return 0 ;;
-    alt-q) printf '__QUIT__:%s\n' "$root"; return 0 ;;
+    alt-m)
+      printf '__MENU__:%s\n' "$root"
+      return 0
+      ;;
+    alt-q)
+      printf '__QUIT__:%s\n' "$root"
+      return 0
+      ;;
   esac
 
-  if [ -n "$selected" ]; then
-    sfb_tui_set_status "Selected file: $(printf '%s' "$selected" | awk -F'\t' '{print $2}')"
+  if [ "${#selected_paths[@]}" -eq 0 ]; then
+    printf '__MENU__:%s\n' "$root"
+    return 0
   fi
+
+  case "$key" in
+    o)
+      if sfb_tui_open_paths "open" "${selected_paths[@]}"; then
+        sfb_tui_set_status "Opened ${#selected_paths[@]} file(s)"
+      else
+        sfb_tui_set_status "Open action failed"
+      fi
+      ;;
+    r)
+      if sfb_tui_open_paths "reveal" "${selected_paths[@]}"; then
+        sfb_tui_set_status "Revealed ${#selected_paths[@]} file(s) in Finder"
+      else
+        sfb_tui_set_status "Reveal action failed"
+      fi
+      ;;
+    t)
+      if sfb_trash_paths "tui" 0 "" "${selected_paths[@]}"; then
+        sfb_tui_set_status "Moved ${#selected_paths[@]} file(s) to Trash"
+      else
+        sfb_tui_set_status "Trash action did not fully complete"
+      fi
+      ;;
+    "")
+      sfb_tui_set_status "Selected ${#selected_paths[@]} file(s)"
+      ;;
+    *)
+      sfb_tui_set_status "Unhandled key: $key"
+      ;;
+  esac
 
   printf '__MENU__:%s\n' "$root"
 }
@@ -329,5 +468,4 @@ sfb_tui() {
 
   sfb_tui_cleanup
   trap - INT TERM EXIT
-  return 0
 }

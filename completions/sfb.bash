@@ -11,6 +11,12 @@ _sfb_completions() {
     list)
       COMPREPLY=( $(compgen -W "--top --sort --human --json --tsv" -- "$cur") )
       ;;
+    summary)
+      COMPREPLY=( $(compgen -W "--json" -- "$cur") )
+      ;;
+    find)
+      COMPREPLY=( $(compgen -W "--name --json" -- "$cur") )
+      ;;
     trash)
       COMPREPLY=( $(compgen -W "--allow-delete --unlock-token --json" -- "$cur") )
       ;;
@@ -21,7 +27,7 @@ _sfb_completions() {
       COMPREPLY=( $(compgen -W "list add remove" -- "$cur") )
       ;;
     *)
-      COMPREPLY=( $(compgen -W "tui scan list trash doctor unlock protect help" -- "$cur") )
+      COMPREPLY=( $(compgen -W "tui scan list summary find trash doctor unlock protect help" -- "$cur") )
       ;;
   esac
 }

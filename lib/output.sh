@@ -140,3 +140,84 @@ sfb_print_trash_json() {
   printf '}'
   printf '\n'
 }
+
+sfb_print_summary_text() {
+  local root="$1"
+  local total_bytes="$2"
+  local file_count="$3"
+  local top_entries_file="$4"
+  local extension_file="$5"
+
+  printf 'Root: %s\n' "$root"
+  printf 'Total size: %s (%s bytes)\n' "$(sfb_human_bytes "$total_bytes")" "$total_bytes"
+  printf 'File count: %s\n' "$file_count"
+  printf '\n'
+
+  printf 'Top 10 by size:\n'
+  printf '%12s  %-10s  %s\n' "BYTES" "SIZE" "PATH"
+  while IFS=$'\t' read -r bytes path _ext; do
+    [ -n "${path:-}" ] || continue
+    printf '%12s  %-10s  %s\n' "$bytes" "$(sfb_human_bytes "$bytes")" "$path"
+  done < "$top_entries_file"
+  printf '\n'
+
+  printf 'Extension breakdown:\n'
+  printf '%-12s  %8s  %12s  %-10s\n' "EXTENSION" "COUNT" "BYTES" "SIZE"
+  while IFS=$'\t' read -r ext_bytes ext_count extension; do
+    [ -n "${extension:-}" ] || continue
+    printf '%-12s  %8s  %12s  %-10s\n' \
+      "$extension" "$ext_count" "$ext_bytes" "$(sfb_human_bytes "$ext_bytes")"
+  done < "$extension_file"
+}
+
+sfb_print_summary_json() {
+  local root="$1"
+  local total_bytes="$2"
+  local file_count="$3"
+  local top_entries_file="$4"
+  local extension_file="$5"
+  local version="0.1.0"
+  local generated_at
+  generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+  printf '{'
+  printf '"version":"%s",' "$(sfb_json_escape "$version")"
+  printf '"root":"%s",' "$(sfb_json_escape "$root")"
+  printf '"generated_at":"%s",' "$(sfb_json_escape "$generated_at")"
+  printf '"summary":{'
+  printf '"total_bytes":%s,' "$total_bytes"
+  printf '"file_count":%s,' "$file_count"
+
+  printf '"top_by_size":['
+  local first=1
+  local bytes path
+  while IFS=$'\t' read -r bytes path _ext; do
+    [ -n "${path:-}" ] || continue
+    [ "$first" -eq 0 ] && printf ','
+    first=0
+    printf '{'
+    printf '"path":"%s",' "$(sfb_json_escape "$path")"
+    printf '"name":"%s",' "$(sfb_json_escape "$(basename "$path")")"
+    printf '"bytes":%s' "$bytes"
+    printf '}'
+  done < "$top_entries_file"
+  printf '],'
+
+  printf '"extensions":['
+  first=1
+  local ext_bytes ext_count extension
+  while IFS=$'\t' read -r ext_bytes ext_count extension; do
+    [ -n "${extension:-}" ] || continue
+    [ "$first" -eq 0 ] && printf ','
+    first=0
+    printf '{'
+    printf '"extension":"%s",' "$(sfb_json_escape "$extension")"
+    printf '"count":%s,' "$ext_count"
+    printf '"total_bytes":%s' "$ext_bytes"
+    printf '}'
+  done < "$extension_file"
+  printf ']'
+
+  printf '}}'
+  printf '\n'
+}
