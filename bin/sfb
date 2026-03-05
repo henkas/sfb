@@ -87,6 +87,7 @@ sfb_trash_paths() {
   local requested_csv=""
   local trashed_csv=""
   local runtime_error=0
+  local has_blocked=0
 
   local auth_error=""
   if [ "$mode" = "cli" ]; then
@@ -173,10 +174,15 @@ sfb_trash_paths() {
     done < "$blocked_file"
   fi
 
+  [ -s "$blocked_file" ] && has_blocked=1
   rm -f "$blocked_file"
 
   if [ "$runtime_error" -eq 1 ]; then
     return 6
+  fi
+
+  if [ "$mode" = "tui" ] && [ "$has_blocked" -eq 1 ]; then
+    return 3
   fi
 
   if [ "$mode" = "cli" ] && [ -n "$requested_csv" ] && [ -z "$trashed_csv" ]; then
@@ -451,6 +457,9 @@ sfb_cmd_find() {
     if [ "$find_rc" -eq 3 ]; then
       printf 'Search blocked for root %s: %s\n' "$root" "$SFB_PATH_REASON" >&2
       return 3
+    elif [ "$find_rc" -eq 7 ]; then
+      printf 'Search root is not readable/searchable: %s\n' "$root" >&2
+      return 7
     fi
     return "$find_rc"
   fi
@@ -595,4 +604,6 @@ main() {
   esac
 }
 
-main "$@"
+if [ "${SFB_SOURCE_ONLY:-0}" -ne 1 ]; then
+  main "$@"
+fi

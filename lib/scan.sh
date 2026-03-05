@@ -177,38 +177,69 @@ sfb_find_entries() {
     rm -f "$tmp"
     return 3
   fi
+  if [ ! -r "$root" ] || [ ! -x "$root" ]; then
+    rm -f "$tmp"
+    return 7
+  fi
 
   local path rel bytes kind
   if command -v fd >/dev/null 2>&1; then
-    while IFS= read -r -d '' rel; do
-      [ -n "${rel:-}" ] || continue
-      path="$root/$rel"
-      [ -e "$path" ] || continue
+    local saved_pwd
+    saved_pwd="$(pwd -P)"
+    cd "$root" 2>/dev/null || {
+      rm -f "$tmp"
+      return 7
+    }
 
-      if [ -d "$path" ]; then
-        kind="dir"
-        bytes=0
-      elif [ -f "$path" ]; then
-        kind="file"
-        bytes="$(stat -f '%z' "$path" 2>/dev/null)"
-        [ -n "${bytes:-}" ] || continue
-      else
-        continue
-      fi
+    if [ -n "$name_pattern" ]; then
+      while IFS= read -r -d '' rel; do
+        [ -n "${rel:-}" ] || continue
+        path="$root/$rel"
+        [ -e "$path" ] || continue
 
-      sfb_classify_path "$path"
-      [ "$SFB_PATH_BLOCKED" -eq 1 ] && continue
+        if [ -d "$path" ]; then
+          kind="dir"
+          bytes=0
+        elif [ -f "$path" ]; then
+          kind="file"
+          bytes="$(stat -f '%z' "$path" 2>/dev/null)"
+          [ -n "${bytes:-}" ] || continue
+        else
+          continue
+        fi
 
-      printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$bytes" "$kind" "$SFB_PATH_TIER" "$SFB_PATH_PROTECTED" "$SFB_PATH_CANONICAL" >> "$tmp"
-    done < <(
-      cd "$root" 2>/dev/null || exit 1
-      if [ -n "$name_pattern" ]; then
-        fd -0 --color never --strip-cwd-prefix --glob "$name_pattern"
-      else
-        fd -0 --color never --strip-cwd-prefix
-      fi
-    )
+        sfb_classify_path "$path"
+        [ "$SFB_PATH_BLOCKED" -eq 1 ] && continue
+
+        printf '%s\t%s\t%s\t%s\t%s\n' \
+          "$bytes" "$kind" "$SFB_PATH_TIER" "$SFB_PATH_PROTECTED" "$SFB_PATH_CANONICAL" >> "$tmp"
+      done < <(fd -0 --color never --strip-cwd-prefix --glob "$name_pattern")
+    else
+      while IFS= read -r -d '' rel; do
+        [ -n "${rel:-}" ] || continue
+        path="$root/$rel"
+        [ -e "$path" ] || continue
+
+        if [ -d "$path" ]; then
+          kind="dir"
+          bytes=0
+        elif [ -f "$path" ]; then
+          kind="file"
+          bytes="$(stat -f '%z' "$path" 2>/dev/null)"
+          [ -n "${bytes:-}" ] || continue
+        else
+          continue
+        fi
+
+        sfb_classify_path "$path"
+        [ "$SFB_PATH_BLOCKED" -eq 1 ] && continue
+
+        printf '%s\t%s\t%s\t%s\t%s\n' \
+          "$bytes" "$kind" "$SFB_PATH_TIER" "$SFB_PATH_PROTECTED" "$SFB_PATH_CANONICAL" >> "$tmp"
+      done < <(fd -0 --color never --strip-cwd-prefix)
+    fi
+
+    cd "$saved_pwd" 2>/dev/null || true
   else
     while IFS= read -r -d '' path; do
       [ -e "$path" ] || continue

@@ -137,3 +137,28 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'"name":"a","bytes":0,"kind":"dir"'* ]]
 }
+
+@test "tui trash mode returns non-zero when any selected path is blocked" {
+  run bash -lc "
+    export SFB_SOURCE_ONLY=1
+    export SFB_CONFIG_FILE='$SFB_CONFIG_FILE'
+    export SFB_TOKEN_FILE='$SFB_TOKEN_FILE'
+    export SFB_TEST_TRASH_LOG='$SFB_TEST_TRASH_LOG'
+    export PATH='$PATH'
+    source '$SFB_BIN'
+    printf 'y\n' | sfb_trash_paths 'tui' 0 '' '$TEST_ROOT/work/file2.txt' '$HOME/.ssh/id_rsa'
+  "
+  [ "$status" -eq 3 ]
+  grep -q "$TEST_ROOT/work/file2.txt" "$SFB_TEST_TRASH_LOG"
+}
+
+@test "find command fails for unreadable root" {
+  mkdir -p "$TEST_ROOT/noaccess/subdir"
+  chmod 000 "$TEST_ROOT/noaccess"
+
+  run "$SFB_BIN" find "$TEST_ROOT/noaccess" --json
+
+  chmod 700 "$TEST_ROOT/noaccess"
+  [ "$status" -eq 7 ]
+  [[ "$output" == *"Search root is not readable/searchable"* ]]
+}

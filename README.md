@@ -11,6 +11,7 @@
 - Recursive usage summary (`summary`)
 - Name-based search with safety filtering (`find`)
 - Interactive full-screen TUI (`sfb` or `sfb tui`) with loading indicators
+- TUI multi-select is always enabled (`Tab`/`Shift-Tab`; `Enter` confirms selected set)
 - Protected path policy (system roots + home-critical dirs)
 - Two-key delete authorization for CLI/agent use:
   - `--allow-delete`
