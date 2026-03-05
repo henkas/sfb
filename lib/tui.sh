@@ -160,14 +160,17 @@ sfb_tui_open_paths() {
   shift
   local paths=("$@")
   local path
+  local rc=0
 
   for path in "${paths[@]}"; do
     if [ "$mode" = "reveal" ]; then
       open -R "$path"
     else
       open "$path"
-    fi
+    fi || rc=$?
   done
+
+  return "$rc"
 }
 
 sfb_tui_browse_loop() {
@@ -207,7 +210,10 @@ sfb_tui_browse_loop() {
     key="$(printf '%s\n' "$result" | sed -n '1p')"
 
     local selected_paths=()
-    mapfile -t selected_paths < <(sfb_tui_extract_selected_paths "$result")
+    local line
+    while IFS= read -r line; do
+      selected_paths+=("$line")
+    done < <(sfb_tui_extract_selected_paths "$result")
 
     rm -f "$entries_file" "$display_file"
 
@@ -309,7 +315,10 @@ sfb_tui_largest_files() {
   key="$(printf '%s\n' "$result" | sed -n '1p')"
 
   local selected_paths=()
-  mapfile -t selected_paths < <(sfb_tui_extract_selected_paths "$result")
+  local line
+  while IFS= read -r line; do
+    selected_paths+=("$line")
+  done < <(sfb_tui_extract_selected_paths "$result")
 
   rm -f "$entries_file" "$display_file"
 

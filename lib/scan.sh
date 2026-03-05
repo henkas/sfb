@@ -117,19 +117,20 @@ sfb_collect_summary_entries() {
   local tmp
   tmp="$(mktemp)"
 
-  while IFS= read -r -d '' file; do
-    local bytes name ext
-    bytes="$(stat -f '%z' "$file" 2>/dev/null)"
-    [ -n "${bytes:-}" ] || continue
+  find "$root" -type f -exec stat -f '%z\t%N' {} + 2>/dev/null | \
+    while IFS=$'\t' read -r bytes file; do
+      local name ext
+      [ -n "${bytes:-}" ] || continue
+      [ -n "${file:-}" ] || continue
 
-    name="$(basename "$file")"
-    ext="(none)"
-    if [[ "$name" == *.* && "$name" != .* ]]; then
-      ext="$(printf '%s' "${name##*.}" | tr '[:upper:]' '[:lower:]')"
-    fi
+      name="$(basename "$file")"
+      ext="(none)"
+      if [[ "$name" == *.* && "$name" != .* ]]; then
+        ext="$(printf '%s' "${name##*.}" | tr '[:upper:]' '[:lower:]')"
+      fi
 
-    printf '%s\t%s\t%s\n' "$bytes" "$file" "$ext" >> "$tmp"
-  done < <(find "$root" -type f -print0 2>/dev/null)
+      printf '%s\t%s\t%s\n' "$bytes" "$file" "$ext" >> "$tmp"
+    done
 
   if [ ! -s "$tmp" ]; then
     : > "$top_entries_file"
@@ -177,7 +178,7 @@ sfb_find_entries() {
     return 3
   fi
 
-  local path rel bytes kind kib
+  local path rel bytes kind
   if command -v fd >/dev/null 2>&1; then
     while IFS= read -r -d '' rel; do
       [ -n "${rel:-}" ] || continue
@@ -186,9 +187,7 @@ sfb_find_entries() {
 
       if [ -d "$path" ]; then
         kind="dir"
-        kib="$(du -sk "$path" 2>/dev/null | awk '{print $1}')"
-        [ -n "${kib:-}" ] || continue
-        bytes="$(sfb_kib_to_bytes "$kib")"
+        bytes=0
       elif [ -f "$path" ]; then
         kind="file"
         bytes="$(stat -f '%z' "$path" 2>/dev/null)"
@@ -216,9 +215,7 @@ sfb_find_entries() {
 
       if [ -d "$path" ]; then
         kind="dir"
-        kib="$(du -sk "$path" 2>/dev/null | awk '{print $1}')"
-        [ -n "${kib:-}" ] || continue
-        bytes="$(sfb_kib_to_bytes "$kib")"
+        bytes=0
       elif [ -f "$path" ]; then
         kind="file"
         bytes="$(stat -f '%z' "$path" 2>/dev/null)"
